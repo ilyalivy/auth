@@ -100,7 +100,6 @@ def create_organization():
     
     new_organization = Organization(name=data['name'])
     db.session.add(new_organization)
-    db.session.commit()
 
     try:
         db.session.commit()
@@ -155,7 +154,19 @@ def add_user_to_org():
     except Exception as e:
         app.logger.error(f"Error while adding user to organization: {e}")
         return jsonify({"message": "Internal server error. Please try again later."}), 500
+    
+@app.route('/list-users/<int:organization_id>', methods=['GET'])
+@jwt_required
+def list_users(organization_id):
+    organization = Organization.query.get(organization_id)
 
+    if not organization:
+        return jsonify({"error": "Organization not found."}), 404
+
+    users = User.query.filter_by(organization_id=organization.id).all()
+    users_list = [{"id": user.id, "email": user.email} for user in users]
+
+    return jsonify({"users": users_list}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
