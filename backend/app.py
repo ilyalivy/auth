@@ -9,6 +9,7 @@ from flask_migrate import Migrate
 import re
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
 from flask_cors import CORS
+from datetime import timedelta
 
 
 # create the app
@@ -87,7 +88,7 @@ def signin():
     
     if not user or not check_password_hash(user.password, data['password']):
         return jsonify({"message": "Invalid credentials."}), 401
-    access_token = create_access_token(identity=user.email)  # Use email as identity
+    access_token = create_access_token(identity=user.email, expires_delta=timedelta(days=1))  # Use email as identity
     return jsonify({"access_token": access_token})
 
 @app.route('/create-org', methods=['POST'])
@@ -131,19 +132,14 @@ def add_user_to_org():
         organization_name = data.get('name')
 
         if not user_email_to_add or not organization_name:
-            return jsonify({"error": "User email and organization name are required."}), 400
+            return jsonify({"message": "User email and organization name are required."}), 400
 
         organization = Organization.query.filter_by(name=organization_name).first()
-        if not organization:
-            return jsonify({"error": "Organization not found."}), 404
 
         user_to_add = User.query.filter_by(email=user_email_to_add).first()
 
-        if not user_to_add:
-            return jsonify({"error": "User with the provided email not found."}), 404
-
         if user_to_add.organization_id == organization.id:
-            return jsonify({"error": "User already added to this organization."}), 400
+            return jsonify({"message": "User already added to this organization."}), 400
         else:
             user_to_add.organization_id = organization.id
             db.session.commit()
@@ -166,6 +162,20 @@ def list_users(organization_id):
     users = User.query.filter_by(organization_id=organization.id).all()
     users_list = [{"id": user.id, "email": user.email} for user in users]
 
+    return jsonify({"users": users_list}), 200
+
+@app.route('/list-orgs', methods=['GET'])
+@jwt_required
+def list_organizations():
+    organizations = Organization.query.all()
+    organizations_list = [{"id": org.id, "name": org.name} for org in organizations]
+    return jsonify({"organizations": organizations_list}), 200
+
+@app.route('/list-all-users', methods=['GET'])
+@jwt_required
+def list_users_all():
+    users = User.query.all()
+    users_list = [{"id": user.id, "email": user.email, "organization_id": user.organization_id} for user in users]
     return jsonify({"users": users_list}), 200
 
 if __name__ == '__main__':
